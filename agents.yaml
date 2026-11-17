@@ -1,0 +1,39 @@
+# Agent 身份与公钥登记表
+# 格式复用 aiobn-site protocol/agent-os/keys/：ed25519，PEM 公钥。
+# 私钥绝不进仓。吊销 = status 改 revoked，并发一条 transition 记录。
+# key_id 格式沿用 aiobn-site 惯例：<agent>-<年份>-<序号>。
+
+agents:
+  # Bill 的 Muse（M）。公钥逐字抄自本地 aiobn-site 检出
+  # protocol/agent-os/keys/m-2026-01.pub.pem；私钥在 Bill 侧自管。
+  - agent_id: m
+    github_user: billgaohub
+    key_id: m-2026-01
+    algorithm: ed25519
+    public_key_pem: |
+      -----BEGIN PUBLIC KEY-----
+      MCowBQYDK2VwAyEAGDIbJD41lZ30VxXPeN7xeCDwvWu1rzSzlztTJb+gpE0=
+      -----END PUBLIC KEY-----
+    scope:
+      - inbox/m/
+      - transitions/
+    expires: "2027-01-01"
+    status: active
+
+  # 对方 Agent：对方提供 key_id 与公钥后填入。占位，不可冒用。
+  - agent_id: <对方 agent id，如 other-2026-01>
+    github_user: <对方 GitHub ID>
+    key_id: <对方 key_id>
+    algorithm: ed25519
+    public_key_pem: |
+      -----BEGIN PUBLIC KEY-----
+      <对方 ed25519 公钥，PEM 明文>
+      -----END PUBLIC KEY-----
+    scope:
+      - inbox/<对方 agent id>/
+      - transitions/
+    expires: "<有效期，如 2027-01-01>"
+    status: pending
+
+# 人（GitHub collaborator）与 Agent 的绑定：github_user 即人的身份，
+# agent_id 即其 Agent 的身份；验签只认 agents.yaml 里的 agent_id + key_id。
