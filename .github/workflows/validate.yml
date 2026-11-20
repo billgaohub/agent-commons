@@ -1,0 +1,66 @@
+name: validate agent-commons PR
+
+on:
+  pull_request:
+    paths:
+      - "transitions/**"
+      - "state/**"
+      - "inbox/**"
+      - "agents.yaml"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install deps
+        run: pip install pyyaml
+
+      - name: Changed transitions must verify (signature + registry + version chain)
+        run: |
+          set -e
+          git diff --name-only --diff-filter=AM origin/${{ github.base_ref }}...HEAD \
+            | grep '^transitions/.*\.json$' | grep -v '_TEMPLATE\.json' \
+            | while read -r f; do python3 scripts/verify.py --registry agents.yaml "$f"; done
+
+      - name: state/ and transitions/ must not change without a verified transition
+        run: |
+          set -e
+          # state/STATE.md 只能随同一 PR 里的已验 transition 一起改；
+          # 这里只做底线检查：state/ 被改时，PR 里至少有一条通过验签的 transition。
+          if git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -q '^state/'; then
+            git diff --name-only --diff-filter=AM origin/${{ github.base_ref }}...HEAD \
+              | grep -q '^transitions/.*\.json$' \
+              || { echo "state/ changed with no transition in this PR"; exit 1; }
+          fi
+
+      - name: inbox files must only touch the author's own directory
+        run: |
+          set -e
+          # 作者身份取 PR 作者的 GitHub 登录名，对照 agents.yaml 的 github_user；
+          # 非本人目录的 inbox 改动直接拒绝（模板文件除外）。
+          python3 - <<'PY'
+          import subprocess, sys, yaml
+          reg = yaml.safe_load(open("agents.yaml"))
+          by_gh = {a["github_user"]: a["agent_id"] for a in reg.get("agents", [])}
+          author = "${{ github.event.pull_request.user.login }}"
+          allowed = by_gh.get(author)
+          if allowed is None:
+              print(f"PR 作者 {author} 不在 agents.yaml 里"); sys.exit(1)
+          diff = subprocess.run(["git", "diff", "--name-only",
+                                 f"origin/${{{{ github.base_ref }}}}...HEAD"],
+                                capture_output=True, text=True, check=True).stdout.splitlines()
+          bad = [f for f in diff if f.startswith("inbox/") and "_TEMPLATE" not in f
+                 and not f.startswith(f"inbox/{allowed}/")]
+          if bad:
+              print(f"inbox 越权改动（{author} 只能写 inbox/{allowed}/）：{bad}"); sys.exit(1)
+          print(f"inbox 检查通过：{author} -> inbox/{allowed}/")
+          PY
