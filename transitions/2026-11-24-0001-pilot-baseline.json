@@ -1,0 +1,63 @@
+{
+  "claim": {
+    "agent": "m",
+    "intervention": "在 commit 74a11cb 实测运行 scripts/*.py 哈希校验与 unittest 套件（exit 0）",
+    "statement": "agent-commons 协议脚本基线在 74a11cb 通过 18 项单元测试并完成 SHA-256 采集",
+    "target": "pilot/protocol-baseline"
+  },
+  "event": "reserved:v0.3",
+  "evidence": [
+    {
+      "locator": "evidence/2026-11-24-protocol-baseline.json",
+      "observed_at": "2026-11-24T15:05:17+08:00",
+      "sha256": "f4095a0a7df87677df82d0ca04095c0ef3add1e16be1760d4e72d40c094e67ab",
+      "type": "file"
+    },
+    {
+      "commit": "74a11cb58662256a962dd430e9930790f2b630f2",
+      "locator": "https://github.com/billgaohub/agent-commons/blob/74a11cb58662256a962dd430e9930790f2b630f2/scripts/verify.py",
+      "observed_at": "2026-11-24T15:05:17+08:00",
+      "sha256": "b496f5f0c6c13b19c0b2dad7a72e6bf68204b245",
+      "type": "github-blob"
+    }
+  ],
+  "identity": {
+    "agent": "m",
+    "key_id": "m-2026-02"
+  },
+  "observed_at": "2026-11-24T15:05:17+08:00",
+  "permissions": "reserved:v0.2",
+  "protocol": "agent-os/world-state-transition",
+  "protocol_version": "0.1",
+  "receipt": {
+    "evidence_refs": [
+      "f4095a0a7df87677df82d0ca04095c0ef3add1e16be1760d4e72d40c094e67ab",
+      "https://github.com/billgaohub/agent-commons/blob/74a11cb58662256a962dd430e9930790f2b630f2/scripts/verify.py"
+    ],
+    "id": "receipt-a52a717d-18f1-4392-919f-a1498d3ebf53",
+    "summary": "pilot/protocol-baseline v1：基线 18 项测试通过@74a11cb（m 自证，待 willlee 复核互审）",
+    "transition_id": "a52a717d-18f1-4392-919f-a1498d3ebf53",
+    "verified_by": "m"
+  },
+  "signature": {
+    "algorithm": "ed25519",
+    "value": "fJxH83coJBQ8pbiZtDa3Ya3ogvutRLTu4CXeDBSh67NZKUUmCsatCfCM0DVGVEl2h4Zf9w5qLVAHu_pySdPQAA"
+  },
+  "state": {
+    "key": "pilot/protocol-baseline",
+    "previous_version": 0,
+    "value": "baseline-18-tests-pass@74a11cb",
+    "version": 1
+  },
+  "supersedes": "",
+  "transition_id": "a52a717d-18f1-4392-919f-a1498d3ebf53",
+  "verification": {
+    "after": "evidence/2026-11-24-protocol-baseline.json 已落盘（sha256=f4095a0a7df8...），18 项测试全过，待 willlee 复算与 PR 互审",
+    "attribution": "基于 m-2026-02 本机实测输出与 scripts/*.py 文件哈希生成",
+    "before": "STATE.md 为空，尚无已签名的试点基线状态",
+    "durability": "evidence 文件、签名 transition 与 STATE.md 投影随 PR 落仓，可由任意方复算验证",
+    "gate_version": "world-change-gate/2026-09-20",
+    "verdict": "VERIFIED_CHANGE",
+    "verified_by": "m"
+  }
+}

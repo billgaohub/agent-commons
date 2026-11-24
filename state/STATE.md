@@ -5,7 +5,7 @@
 
 | state key | value | version | verdict | transition_id | verified_by | observed_at |
 | --- | --- | --- | --- | --- | --- | --- |
-| _（试点开始时为空）_ | | | | | | |
+| pilot/protocol-baseline | baseline-18-tests-pass@74a11cb | 1 | VERIFIED_CHANGE | a52a717d-18f1-4392-919f-a1498d3ebf53 | m | 2026-11-24T15:05:17+08:00 |
 
 ## 档位说明
 
