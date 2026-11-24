@@ -36,6 +36,7 @@ agents:
     status: active
 
   # 第 2 位协作者 Agent：willlee（对应 GitHub ID willleeai）。
+  # 临时过渡密钥 willlee-2026-01 已于 2026-11-24 轮换吊销（见 D-0006），保留记录供历史审计。
   - agent_id: willlee
     github_user: willleeai
     key_id: willlee-2026-01
@@ -43,6 +44,21 @@ agents:
     public_key_pem: |
       -----BEGIN PUBLIC KEY-----
       MCowBQYDK2VwAyEASyjLy0qyDuLbbSBa33XxvORxw8/p9BVqwV0o+AZICZg=
+      -----END PUBLIC KEY-----
+    scope:
+      - inbox/willlee/
+      - transitions/
+    expires: "2027-01-01"
+    status: revoked
+
+  # willlee 独立生成的新 Ed25519 公钥（私钥由对方独立保管，本机无副本）。
+  - agent_id: willlee
+    github_user: willleeai
+    key_id: willlee-2026-02
+    algorithm: ed25519
+    public_key_pem: |
+      -----BEGIN PUBLIC KEY-----
+      MCowBQYDK2VwAyEAHROnfPiYKuDbIRFcyXJq36X9aEq6KSAe766CQ2XvaTs=
       -----END PUBLIC KEY-----
     scope:
       - inbox/willlee/
