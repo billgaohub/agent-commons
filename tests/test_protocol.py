@@ -859,6 +859,31 @@ class CIGateGitIntegrationTests(unittest.TestCase):
         self.assertEqual(res2.returncode, 1)
         self.assertIn("禁止无来源断言", res2.stdout)
 
+    def test_registry_multi_key_same_user_allowed_and_cross_user_rejected(self) -> None:
+        _, m2_pub = _gen_ed25519_keypair(self.keys_dir, "m2")
+        _write_registry(
+            self.work / "agents.yaml",
+            [
+                _make_agent_entry(agent_id="m", github_user="billgaohub", key_id="m-2026-01", pub_pem=self.m_pub),
+                _make_agent_entry(agent_id="m", github_user="billgaohub", key_id="m-2026-02", pub_pem=m2_pub),
+                _make_agent_entry(agent_id="other", github_user="partner", key_id="other-2026-01", pub_pem=self.o_pub),
+            ],
+        )
+        res_ok = _ci_cli(["--event", "push", "--as-of", "2026-11-24"], self.work)
+        self.assertEqual(res_ok.returncode, 0, res_ok.stdout + res_ok.stderr)
+
+        # Cross-user hijacking of same active agent_id must be rejected
+        _write_registry(
+            self.work / "agents.yaml",
+            [
+                _make_agent_entry(agent_id="m", github_user="billgaohub", key_id="m-2026-01", pub_pem=self.m_pub),
+                _make_agent_entry(agent_id="m", github_user="intruder", key_id="m-2026-02", pub_pem=m2_pub),
+            ],
+        )
+        res_bad = _ci_cli(["--event", "push", "--as-of", "2026-11-24"], self.work)
+        self.assertEqual(res_bad.returncode, 1)
+        self.assertIn("绑定了不同的 github_user", res_bad.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()

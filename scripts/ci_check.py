@@ -62,7 +62,7 @@ def validate_registry_schema(registry_path: Path) -> None:
         raise GateError("agents.yaml 顶层必须包含 agents 列表")
 
     seen_keys: set[str] = set()
-    seen_agents: set[str] = set()
+    seen_agents: dict[str, str] = {}
     for idx, entry in enumerate(raw["agents"]):
         if not isinstance(entry, dict):
             raise GateError(f"agents[{idx}] 必须是 mapping")
@@ -87,15 +87,19 @@ def validate_registry_schema(registry_path: Path) -> None:
         if status == "pending":
             continue
 
-        if agent_id in seen_agents and status == "active":
-            raise GateError(f"agents.yaml 存在多个 active 状态的同 agent_id：{agent_id!r}")
-        if status == "active":
-            seen_agents.add(agent_id)
-
         for str_field in ("agent_id", "github_user", "key_id"):
             val = entry.get(str_field)
             if not isinstance(val, str) or not val.strip() or is_placeholder(val):
                 raise GateError(f"agents[{idx}].{str_field} 不能是空值或模板占位符：{val!r}")
+
+        if status == "active":
+            gh_user = entry["github_user"]
+            prev_user = seen_agents.get(agent_id)
+            if prev_user is not None and prev_user != gh_user:
+                raise GateError(
+                    f"agents.yaml 中同 agent_id {agent_id!r} 绑定了不同的 github_user（{prev_user!r} vs {gh_user!r}）"
+                )
+            seen_agents[agent_id] = gh_user
 
         if entry.get("algorithm") != "ed25519":
             raise GateError(f"agents[{idx}].algorithm 必须为 'ed25519'")
