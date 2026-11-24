@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -16,6 +17,7 @@ SCRIPTS_DIR = REPO_ROOT / "scripts"
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
+import ci_check  # noqa: E402
 from canonical import canonical_bytes  # noqa: E402
 from render_state import render_state_markdown  # noqa: E402
 
@@ -883,6 +885,190 @@ class CIGateGitIntegrationTests(unittest.TestCase):
         res_bad = _ci_cli(["--event", "push", "--as-of", "2026-11-24"], self.work)
         self.assertEqual(res_bad.returncode, 1)
         self.assertIn("绑定了不同的 github_user", res_bad.stdout)
+
+    def _seed_referenced_evidence_main(self) -> tuple[Path, Path]:
+        self._new_branch("seed-ev")
+        ev_ref = self.work / "evidence" / "e1.txt"
+        ev_ref.write_text("line1\nline2\nline3\nline4\nreferenced proof payload\n", encoding="utf-8")
+        ev_sha = hashlib.sha256(ev_ref.read_bytes()).hexdigest()
+
+        ev_unref = self.work / "evidence" / "unref.txt"
+        ev_unref.write_text("unreferenced draft note\n", encoding="utf-8")
+
+        (self.work / "doc").mkdir(exist_ok=True)
+        (self.work / "doc" / "DECISION_LEDGER.md").write_text("# Ledger\n", encoding="utf-8")
+
+        t1_path = self.work / "transitions" / "t1.json"
+        t1 = _make_transition(
+            tid="t-evseed-1",
+            agent="m",
+            key_id="m-2026-01",
+            state_key="pilot/topic-ev",
+            state_value="v1",
+            version=1,
+            evidence_locator="evidence/e1.txt",
+            evidence_sha256=ev_sha,
+        )
+        t1_path.write_text(json.dumps(t1), encoding="utf-8")
+        self.assertEqual(_sign_file(self.m_priv, t1_path).returncode, 0)
+        (self.work / "state" / "STATE.md").write_text(
+            render_state_markdown(self.work / "transitions"), encoding="utf-8"
+        )
+        self._commit_all("seed referenced and unreferenced evidence")
+        _git(self.work, ["checkout", "main"])
+        _git(self.work, ["merge", "--no-ff", "seed-ev", "-m", "merge seed"])
+        _git(self.work, ["push", "origin", "main"])
+        return ev_ref, ev_unref
+
+    def test_referenced_evidence_append_only_blocks_modify_delete_rename(self) -> None:
+        ev_ref, _ = self._seed_referenced_evidence_main()
+
+        # Modify referenced evidence
+        self._new_branch("atk-ev-mod")
+        ev_ref.write_text("tampered\n", encoding="utf-8")
+        self._commit_all("modify referenced evidence")
+        res_m = _ci_cli(
+            ["--event", "pull_request", "--base-ref", "main", "--pr-author", "partner", "--as-of", "2026-11-24"],
+            self.work,
+        )
+        self.assertEqual(res_m.returncode, 1)
+        self.assertIn("evidence/ 已被 transition 引用", res_m.stdout)
+
+        # Delete referenced evidence
+        self._new_branch("atk-ev-del")
+        ev_ref.unlink()
+        self._commit_all("delete referenced evidence")
+        res_d = _ci_cli(
+            ["--event", "pull_request", "--base-ref", "main", "--pr-author", "partner", "--as-of", "2026-11-24"],
+            self.work,
+        )
+        self.assertEqual(res_d.returncode, 1)
+        self.assertIn("evidence/ 已被 transition 引用", res_d.stdout)
+
+        # Rename referenced evidence (R100)
+        self._new_branch("atk-ev-ren")
+        shutil.move(str(ev_ref), str(self.work / "evidence" / "e1_renamed.txt"))
+        self._commit_all("rename referenced evidence")
+        diff_ns = _git(self.work, ["diff", "--name-status", "origin/main...HEAD", "--", "evidence/"])
+        self.assertTrue(diff_ns.startswith("R"), diff_ns)
+        res_r = _ci_cli(
+            ["--event", "pull_request", "--base-ref", "main", "--pr-author", "partner", "--as-of", "2026-11-24"],
+            self.work,
+        )
+        self.assertEqual(res_r.returncode, 1)
+        self.assertIn("evidence/ 已被 transition 引用", res_r.stdout)
+
+    def test_unreferenced_and_new_evidence_allowed(self) -> None:
+        _, ev_unref = self._seed_referenced_evidence_main()
+
+        # Modify unreferenced evidence -> allowed
+        self._new_branch("ok-unref-mod")
+        ev_unref.write_text("updated draft note\n", encoding="utf-8")
+        self._commit_all("modify unreferenced")
+        res_um = _ci_cli(
+            ["--event", "pull_request", "--base-ref", "main", "--pr-author", "partner", "--as-of", "2026-11-24"],
+            self.work,
+        )
+        self.assertEqual(res_um.returncode, 0, res_um.stdout + res_um.stderr)
+
+        # Delete unreferenced evidence -> allowed
+        self._new_branch("ok-unref-del")
+        ev_unref.unlink()
+        self._commit_all("delete unreferenced")
+        res_ud = _ci_cli(
+            ["--event", "pull_request", "--base-ref", "main", "--pr-author", "partner", "--as-of", "2026-11-24"],
+            self.work,
+        )
+        self.assertEqual(res_ud.returncode, 0, res_ud.stdout + res_ud.stderr)
+
+        # Add standalone new evidence (A) -> allowed
+        self._new_branch("ok-new-standalone")
+        (self.work / "evidence" / "standalone.txt").write_text("new file\n", encoding="utf-8")
+        self._commit_all("add standalone evidence")
+        res_sa = _ci_cli(
+            ["--event", "pull_request", "--base-ref", "main", "--pr-author", "partner", "--as-of", "2026-11-24"],
+            self.work,
+        )
+        self.assertEqual(res_sa.returncode, 0, res_sa.stdout + res_sa.stderr)
+
+        # Add new evidence (A) + new transition referencing it in same PR -> allowed
+        self._new_branch("ok-new-with-transition")
+        ev2 = self.work / "evidence" / "e2.txt"
+        ev2.write_text("evidence v2\n", encoding="utf-8")
+        ev2_sha = hashlib.sha256(ev2.read_bytes()).hexdigest()
+        t2_path = self.work / "transitions" / "t2.json"
+        t2 = _make_transition(
+            tid="t-evseed-2",
+            agent="other",
+            key_id="other-2026-01",
+            state_key="pilot/topic-ev",
+            state_value="v2",
+            version=2,
+            supersedes="t-evseed-1",
+            evidence_locator="evidence/e2.txt",
+            evidence_sha256=ev2_sha,
+        )
+        t2_path.write_text(json.dumps(t2), encoding="utf-8")
+        self.assertEqual(_sign_file(self.o_priv, t2_path).returncode, 0)
+        (self.work / "state" / "STATE.md").write_text(
+            render_state_markdown(self.work / "transitions"), encoding="utf-8"
+        )
+        self._commit_all("add evidence + transition v2")
+        res_tr = _ci_cli(
+            ["--event", "pull_request", "--base-ref", "main", "--pr-author", "partner", "--as-of", "2026-11-24"],
+            self.work,
+        )
+        self.assertEqual(res_tr.returncode, 0, res_tr.stdout + res_tr.stderr)
+
+    def test_referenced_evidence_owner_decision_ledger_exception_only(self) -> None:
+        ev_ref, _ = self._seed_referenced_evidence_main()
+
+        # Non-owner modifying referenced evidence WITH DECISION_LEDGER.md -> still rejected at diff gate
+        self._new_branch("atk-nonowner-ledger")
+        ev_ref.write_text("redacted by partner\n", encoding="utf-8")
+        (self.work / "doc" / "DECISION_LEDGER.md").write_text("# Ledger\n| D-1 |\n", encoding="utf-8")
+        self._commit_all("non-owner ledger edit")
+        res_no = _ci_cli(
+            ["--event", "pull_request", "--base-ref", "main", "--pr-author", "partner", "--as-of", "2026-11-24"],
+            self.work,
+        )
+        self.assertEqual(res_no.returncode, 1)
+        self.assertIn("evidence/ 已被 transition 引用", res_no.stdout)
+
+        # Owner modifying referenced evidence WITHOUT DECISION_LEDGER.md -> rejected at diff gate
+        self._new_branch("atk-owner-no-ledger")
+        ev_ref.write_text("redacted without ledger\n", encoding="utf-8")
+        self._commit_all("owner no ledger")
+        res_onl = _ci_cli(
+            ["--event", "pull_request", "--base-ref", "main", "--pr-author", "billgaohub", "--as-of", "2026-11-24"],
+            self.work,
+        )
+        self.assertEqual(res_onl.returncode, 1)
+        self.assertIn("evidence/ 已被 transition 引用", res_onl.stdout)
+
+        # Owner modifying referenced evidence WITH DECISION_LEDGER.md -> passes diff gate (exempted=1),
+        # while verify.py _validate_evidence() backstop remains intact (sha256 check still runs).
+        self._new_branch("ok-owner-with-ledger")
+        ev_ref.write_text("redacted sensitive line\n", encoding="utf-8")
+        (self.work / "doc" / "DECISION_LEDGER.md").write_text("# Ledger\n| D-99 | redact |\n", encoding="utf-8")
+        self._commit_all("owner redact with ledger")
+        exempted = ci_check.validate_evidence_append_only(
+            repo_root=self.work,
+            base_target="origin/main",
+            diff_range="origin/main...HEAD",
+            added_transitions=[],
+            changed_files=["doc/DECISION_LEDGER.md", "evidence/e1.txt"],
+            pr_author="billgaohub",
+            repo_owner="billgaohub",
+        )
+        self.assertEqual(exempted, 1)
+        res_full = _ci_cli(
+            ["--event", "pull_request", "--base-ref", "main", "--pr-author", "billgaohub", "--as-of", "2026-11-24"],
+            self.work,
+        )
+        self.assertEqual(res_full.returncode, 1)
+        self.assertIn("sha256 不匹配", res_full.stdout)
+        self.assertNotIn("evidence/ 已被 transition 引用", res_full.stdout)
 
 
 if __name__ == "__main__":

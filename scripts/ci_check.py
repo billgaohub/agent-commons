@@ -8,12 +8,13 @@
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import subprocess
 import sys
 import tempfile
 from datetime import date, datetime, timezone
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 import yaml
@@ -140,6 +141,97 @@ def _parse_name_status(output: str) -> list[tuple[str, list[str]]]:
     return entries
 
 
+def _normalize_repo_posix(raw_path: str) -> str:
+    cleaned = raw_path.strip().replace("\\", "/")
+    while cleaned.startswith("./"):
+        cleaned = cleaned[2:]
+    return PurePosixPath(cleaned).as_posix()
+
+
+def _extract_file_evidence_locators(envelope: Any) -> set[str]:
+    if not isinstance(envelope, dict):
+        return set()
+    locs: set[str] = set()
+    for item in envelope.get("evidence") or []:
+        if not isinstance(item, dict) or item.get("type") != "file":
+            continue
+        loc = item.get("locator")
+        if isinstance(loc, str) and loc.strip():
+            locs.add(_normalize_repo_posix(loc))
+    return locs
+
+
+def _collect_referenced_file_evidence(
+    repo_root: Path,
+    base_target: str,
+    added_transitions: list[Path],
+) -> set[str]:
+    referenced: set[str] = set()
+
+    base_files = _run_git(
+        repo_root, ["ls-tree", "-r", "--name-only", base_target, "--", "transitions/"]
+    ).splitlines()
+    for rel in base_files:
+        rel = rel.strip()
+        if not rel or not rel.endswith(".json") or PurePosixPath(rel).name == "_TEMPLATE.json":
+            continue
+        raw_text = _run_git(repo_root, ["show", f"{base_target}:{rel}"])
+        try:
+            env = json.loads(raw_text)
+        except Exception as exc:  # noqa: BLE001
+            raise GateError(f"base 分支 {rel} JSON 解析失败：{exc}") from exc
+        referenced.update(_extract_file_evidence_locators(env))
+
+    for rel_path in added_transitions:
+        target = repo_root / rel_path
+        if not target.is_file():
+            continue
+        try:
+            env = json.loads(target.read_text(encoding="utf-8"))
+        except Exception as exc:  # noqa: BLE001
+            raise GateError(f"新增 {rel_path} JSON 解析失败：{exc}") from exc
+        referenced.update(_extract_file_evidence_locators(env))
+
+    return referenced
+
+
+def validate_evidence_append_only(
+    *,
+    repo_root: Path,
+    base_target: str,
+    diff_range: str,
+    added_transitions: list[Path],
+    changed_files: list[str],
+    pr_author: str,
+    repo_owner: str,
+) -> int:
+    ev_entries = _parse_name_status(
+        _run_git(repo_root, ["diff", "--name-status", diff_range, "--", "evidence/"])
+    )
+    if not ev_entries:
+        return 0
+
+    referenced = _collect_referenced_file_evidence(repo_root, base_target, added_transitions)
+    owner_ledger_exception = pr_author == repo_owner and "doc/DECISION_LEDGER.md" in changed_files
+
+    protected_hits: list[tuple[str, list[str], list[str]]] = []
+    for status, paths in ev_entries:
+        if status == "A":
+            continue
+        matched = [p for p in paths if _normalize_repo_posix(p) in referenced]
+        if matched:
+            protected_hits.append((status, paths, matched))
+
+    if protected_hits:
+        if owner_ledger_exception:
+            return len(protected_hits)
+        details = "; ".join(f"{st} {ps} (引用命中 {m})" for st, ps, m in protected_hits)
+        raise GateError(
+            f"evidence/ 已被 transition 引用，必须 append-only（禁止非 A 操作；仅 owner 同步修改 doc/DECISION_LEDGER.md 可例外删敏）：{details}"
+        )
+    return 0
+
+
 def _validate_inbox_message(path: Path, rel_path: str, expected_agent_id: str) -> None:
     text = path.read_text(encoding="utf-8")
     m = _FRONTMATTER_RE.match(text)
@@ -260,6 +352,17 @@ def run_pull_request_checks(
                 raise GateError(f"transitions/ 只允许 .json 文件：{primary}")
             added_transitions.append(Path(primary))
 
+        # 3.5 已被 transition 引用的 type=file evidence/ 文件必须 append-only（禁止 M/D/R/C/T）
+        ev_exempted = validate_evidence_append_only(
+            repo_root=repo_root,
+            base_target=base_target,
+            diff_range=diff_range,
+            added_transitions=added_transitions,
+            changed_files=changed_files,
+            pr_author=pr_author,
+            repo_owner=repo_owner,
+        )
+
         # 4. 全量 transition 验签 + 链检查（新文件使用 base 信任根 + 强绑定 pr_author）
         try:
             trans_summaries = verify_repository(
@@ -335,6 +438,7 @@ def run_pull_request_checks(
     msgs = [
         f"trust-root: base={base_target}, pr_author={pr_author}, protected_touched={len(protected_hits)}",
         f"transitions: {len(trans_summaries)} verified ({len(added_transitions)} new)",
+        f"evidence: referenced-file append-only checked (owner_exemptions={ev_exempted})",
         state_msg,
         f"inbox: {inbox_checked} message(s) validated",
     ]
