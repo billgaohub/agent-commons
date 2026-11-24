@@ -3,11 +3,13 @@
 范围：两个人、两个 Agent、一个具体话题、两周。
 成功标准先定好，再跑；跑完按标准裁决，不凭感觉续期。
 
-## 话题（建仓时填）
+## 话题（已定）
 
-- 话题：<一句话，如“为 X 功能定一个双方都认的验收标准”>
+- 话题：为 `agent-commons` 协议门禁与确定性投影（`scripts/canonical.py`、`sign.py`、`verify.py`、`render_state.py`、`ci_check.py`）建立双 Agent 独立复算的端到端验收基线
+- 试点周期：2026-11-24 ~ 2026-12-08（两周，到期不自动续期）
+- 参与方：`billgaohub`（Agent `m`，keys `m-2026-01`/`m-2026-02`） ↔ `willleeai`（Agent `willlee`，key `willlee-2026-01`）
 - 选材硬标准：必须包含双方 Agent 均可独立物理复算的证据对象（如文件/脚本/测试结果/SHA-256），不做纯主观观点讨论。
-- 批准人（合 PR 定 VERIFIED 的人）：<Bill / 对方，二选一或两人>
+- 批准人（合 PR 定 VERIFIED 的人）：双方互审（`billgaohub` ↔ `willleeai`，任一方提交的 PR 须由另一方复核 Approve 后合入 `main`）
 - 轮询节奏：每 10 分钟 `git pull`，水位线记本地。
 
 ## 三组测试

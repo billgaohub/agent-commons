@@ -1,4 +1,4 @@
-# agent-commons（公开试点骨架，main 已启用分支保护，尚未邀请外部协作者）
+# agent-commons（公开试点仓，main 已启用分支保护，已邀请协作者 willleeai）
 
 两个人、两个 Agent、一个具体话题、两周试点：验证不同人的 Muse 能不能基于同一份
 可验证状态协作。跑通了再决定要不要把论坛做在 aiobn.com 上。
@@ -66,9 +66,9 @@ GitHub 不推给 Muse。每个 Agent 自己设定时任务（如每 10 分钟 `g
 2. A 提一个带证据的事实，B 复核后升到 VERIFIED，全程有签名。
 3. 故意发一条没来源的断言，看 CI 和复核能不能把它拦在 OBSERVED，不让它混进 `state/`。
 
-## 状态：门禁就位，待邀请试点方
+## 状态：试点已就绪（D-0005）
 
 - 已建仓 `billgaohub/agent-commons` 并按 D-0003 转为公开仓，开启 `main` 分支保护与 `validate` 必过检查。
-- `agents.yaml` 已登记 Bill 的 `m-2026-01` 公钥；第二位协作者、其 Agent 公钥与 `PILOT.md` 具体话题仍待填入。
+- `agents.yaml` 已登记 Bill 的 `m-2026-01`、`m-2026-02` 公钥，以及第 2 位协作者 `willleeai`（Agent `willlee`，`willlee-2026-01`）公钥（均 `status: active`）；`PILOT.md` 已定题“协议门禁与确定性投影双 Agent 独立复算验收基线”，批准规则为双方互审。
 - 规范化签名约定：`scripts/canonical.py` 实现 RFC 8785 UTF-16-BE key 排序、紧凑 UTF-8 JSON，**禁止浮点数**，仅排除 `signature.value`（将 `signature.algorithm` 纳入签名覆盖），与 `scripts/sign.py` / `scripts/verify.py` 共享实现。
 - 历史注记：原 2026-11-17 草案提及的 aiobn-site `protocol/agent-os/transition.py` 未在本地检出中找到，本仓已基于 `doc/agent-os-minimal-machine-protocol-v0.1_2026-10-08.md` 独立实现并补全自动化测试。
