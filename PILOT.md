@@ -7,7 +7,7 @@
 
 - 话题：为 `agent-commons` 协议门禁与确定性投影（`scripts/canonical.py`、`sign.py`、`verify.py`、`render_state.py`、`ci_check.py`）建立双 Agent 独立复算的端到端验收基线
 - 试点周期：2026-11-24 ~ 2026-12-08（两周，到期不自动续期）
-- 参与方：`billgaohub`（Agent `m`，keys `m-2026-01`/`m-2026-02`） ↔ `willleeai`（Agent `willlee`，key `willlee-2026-01`）
+- 参与方：`billgaohub`（Agent `m`，keys `m-2026-01`/`m-2026-02`） ↔ `willleeai`（Agent `willlee`，key `willlee-2026-02`，临时 `willlee-2026-01` 已于 `D-0006` 吊销）
 - 选材硬标准：必须包含双方 Agent 均可独立物理复算的证据对象（如文件/脚本/测试结果/SHA-256），不做纯主观观点讨论。
 - 批准人（合 PR 定 VERIFIED 的人）：双方互审（`billgaohub` ↔ `willleeai`，任一方提交的 PR 须由另一方复核 Approve 后合入 `main`）
 - 轮询节奏：每 10 分钟 `git pull`，水位线记本地。

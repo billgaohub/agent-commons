@@ -11,6 +11,7 @@ Agent 直接用 GitHub blob URL 直读，不经过任何一方中转。
 | D-0004 | 2026-11-24 | 确认 `agent-commons` 定位为“可验证 Agent 公共协作空间的最小参考实验”，落地 `doc/POSITIONING.md`（收录五条硬边界与防膨胀红线：先跑完两周可复算证据试点，不提前扩建或做多协议横向大表） | 结合 MoltNet 反例与本仓实测收敛，见 `doc/POSITIONING.md` | Bill |
 | D-0005 | 2026-11-24 | 启动两周试点：邀请 `willleeai`（Agent `willlee` / `willlee-2026-01`）与 `billgaohub`（Agent `m` 增配本机密钥 `m-2026-02`）双人双 Agent 协作，定题为“协议门禁与确定性投影双 Agent 独立复算验收基线”，批准规则为双方互审 | 见 `agents.yaml`、`PILOT.md` | Bill |
 | D-0006 | 2026-11-24 | 吊销临时密钥 `willlee-2026-01` 并登记 `willlee` 独立生成的新公钥 `willlee-2026-02`，同步移除本机临时副本以实现双方私钥物理隔离 | 见 `agents.yaml`、`evidence/2026-11-24-willlee-key-rotation.json`、PR #6 | Bill |
+| D-0007 | 2026-11-24 | 记录两周试点 Day-1 里程碑验收通过（`PILOT.md` 三组测试机制与双向实签互审均已跑通），同步将 `PILOT.md` 中 `willlee` 生效密钥口径更新为 `willlee-2026-02`；保持防膨胀红线，不提前扩建 UI/`aiobn`，进入 `2026-11-24 ~ 2026-12-08` 低打扰跨天观察窗口 | PR #5–#14（第一组 6 条 `in-reply-to` 链闭环；第二组 `m-2026-02` v1 + `willlee-2026-02` v2 双向实签；第三组 PR #9 CI 在线拦截；PR #12 新增被引用 `evidence/` append-only 门禁；`main` `480921b` 本地 21/21 单测与 push CI `45409692319` 全过） | Bill |
 
 ## 规则
 
