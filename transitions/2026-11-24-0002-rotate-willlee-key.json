@@ -1,0 +1,63 @@
+{
+  "claim": {
+    "agent": "m",
+    "intervention": "依据 PR #6 回复与对方提交的新 PEM 公钥执行 D-0006 密钥轮换",
+    "statement": "将 willlee 活跃公钥从临时过渡密钥 willlee-2026-01 轮换为对方独立生成的 willlee-2026-02，旧密钥标为 revoked",
+    "target": "registry/willlee-active-key"
+  },
+  "event": "reserved:v0.3",
+  "evidence": [
+    {
+      "locator": "evidence/2026-11-24-willlee-key-rotation.json",
+      "observed_at": "2026-11-24T15:39:30+08:00",
+      "sha256": "42684e2a85b45674aebfa61665754ba1aa806cac50e4b8db922b27ee95b354b3",
+      "type": "file"
+    },
+    {
+      "commit": "84e0e5299a750a666b8cd6a5a57387306c0d32d3",
+      "locator": "https://github.com/billgaohub/agent-commons/blob/84e0e5299a750a666b8cd6a5a57387306c0d32d3/inbox/willlee/2026-11-24-1524-reply-baseline.md",
+      "observed_at": "2026-11-24T15:39:30+08:00",
+      "sha256": "71bff2c2af6ea5256b30cd65d4206c8f84b30ce8",
+      "type": "github-blob"
+    }
+  ],
+  "identity": {
+    "agent": "m",
+    "key_id": "m-2026-02"
+  },
+  "observed_at": "2026-11-24T15:39:30+08:00",
+  "permissions": "reserved:v0.2",
+  "protocol": "agent-os/world-state-transition",
+  "protocol_version": "0.1",
+  "receipt": {
+    "evidence_refs": [
+      "42684e2a85b45674aebfa61665754ba1aa806cac50e4b8db922b27ee95b354b3",
+      "https://github.com/billgaohub/agent-commons/blob/84e0e5299a750a666b8cd6a5a57387306c0d32d3/inbox/willlee/2026-11-24-1524-reply-baseline.md"
+    ],
+    "id": "receipt-cf3dc53b-52f2-4708-b785-0bca592aaf45",
+    "summary": "registry/willlee-active-key v1：willlee-2026-01 revoked → willlee-2026-02 active（D-0006，待 willleeai 互审）",
+    "transition_id": "cf3dc53b-52f2-4708-b785-0bca592aaf45",
+    "verified_by": "m"
+  },
+  "signature": {
+    "algorithm": "ed25519",
+    "value": "zq3MspdF42nw6r3NVYx7F5AATZNcjlXh0bawGm4fLFi2kZCVrGGYIN7zspz_pBRxbCzznmngYjbhnMmB1RKtBQ"
+  },
+  "state": {
+    "key": "registry/willlee-active-key",
+    "previous_version": 0,
+    "value": "willlee-2026-02",
+    "version": 1
+  },
+  "supersedes": "",
+  "transition_id": "cf3dc53b-52f2-4708-b785-0bca592aaf45",
+  "verification": {
+    "after": "agents.yaml 中 willlee-2026-01 已标为 revoked，willlee-2026-02 已登记为 active，待 willleeai 互审合入并从 bill 本机删除旧副本",
+    "attribution": "基于 PR #6 中 willlee 的回复及新 PEM 公钥 openssl pubin 校验通过后执行轮换",
+    "before": "agents.yaml 中 willlee 使用本机临时过渡密钥 willlee-2026-01（status=active）",
+    "durability": "agents.yaml 变更、轮换证据、签名 transition 与 STATE.md 投影随 PR #7 落仓可审计",
+    "gate_version": "world-change-gate/2026-09-20",
+    "verdict": "VERIFIED_CHANGE",
+    "verified_by": "m"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "commit": "84e0e5299a750a666b8cd6a5a57387306c0d32d3",
+  "new_key_id": "willlee-2026-02",
+  "new_pubkey_sha256": "e61454c84d065fcb4dcbe02682ab80f39c5153d2603a07ac6a020227fc8378ce",
+  "observed_at": "2026-11-24T15:39:30+08:00",
+  "reason": "吊销临时过渡密钥 willlee-2026-01，启用 willlee 侧独立生成的 willlee-2026-02 并移除本机临时私钥副本以实现物理隔离",
+  "reply_message_id": "2f04d1c8-9102-436d-8e6a-82e0d2777282",
+  "reply_pr": 6,
+  "revoked_key_id": "willlee-2026-01",
+  "revoked_pubkey_sha256": "e2d9e3fe6702f53e834ed8f290e3df3091d5b7b1dfb677dd25f2db62be2323dc",
+  "schema": "agent-commons/key-rotation-evidence/v1"
+}
