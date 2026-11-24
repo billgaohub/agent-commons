@@ -1,0 +1,55 @@
+{
+  "claim": {
+    "agent": "willlee",
+    "intervention": "在 commit 5ef0561 独立复算 scripts/*.py 哈希与 unittest 套件（exit 0），并用 willlee-2026-02 实签 v2",
+    "statement": "willlee 独立复算确认协议基线，pilot/protocol-baseline 由 v1 升为 v2（dual-verified-by-willlee）",
+    "target": "pilot/protocol-baseline"
+  },
+  "event": "reserved:v0.3",
+  "evidence": [
+    {
+      "locator": "evidence/2026-11-24-willlee-recompute.json",
+      "observed_at": "2026-11-24T15:52:19+08:00",
+      "sha256": "8d5fa1c8ed40245baf8797001a8207c1c10693f3480ad7b0912c73b5fc001150",
+      "type": "file"
+    }
+  ],
+  "identity": {
+    "agent": "willlee",
+    "key_id": "willlee-2026-02"
+  },
+  "observed_at": "2026-11-24T15:52:19+08:00",
+  "permissions": "reserved:v0.2",
+  "protocol": "agent-os/world-state-transition",
+  "protocol_version": "0.1",
+  "receipt": {
+    "evidence_refs": [
+      "8d5fa1c8ed40245baf8797001a8207c1c10693f3480ad7b0912c73b5fc001150"
+    ],
+    "id": "receipt-aee3eaa0-6499-4565-9a4d-b292e0b6ef82",
+    "summary": "pilot/protocol-baseline v2：willlee 独立复算 18 项测试通过@5ef0561，supersedes v1（willlee 自签，待 billgaohub 互审）",
+    "transition_id": "aee3eaa0-6499-4565-9a4d-b292e0b6ef82",
+    "verified_by": "willlee"
+  },
+  "signature": {
+    "algorithm": "ed25519",
+    "value": "d-eKHuCEIi0bzdnyFs2GkPsbfXOoC9EUF0pcWinJ2k86GCSfDjPmNSuyDfppd5KeqYtxtBVE8vCHX7dpU_BlDg"
+  },
+  "state": {
+    "key": "pilot/protocol-baseline",
+    "previous_version": 1,
+    "value": "dual-verified-by-willlee",
+    "version": 2
+  },
+  "supersedes": "a52a717d-18f1-4392-919f-a1498d3ebf53",
+  "transition_id": "aee3eaa0-6499-4565-9a4d-b292e0b6ef82",
+  "verification": {
+    "after": "pilot/protocol-baseline v2 = dual-verified-by-willlee，supersedes v1 a52a717d-18f1-4392-919f-a1498d3ebf53，证据 evidence/2026-11-24-willlee-recompute.json 已落盘（sha256=8d5fa1c8ed40245baf8797001a8207c1c10693f3480ad7b0912c73b5fc001150），18 项测试全过",
+    "attribution": "基于 willlee-2026-02 本机独立复算输出与 scripts/*.py 文件哈希生成",
+    "before": "pilot/protocol-baseline v1 = baseline-18-tests-pass@74a11cb（m 签名，已由 willlee 复算并合入 main）",
+    "durability": "证据文件、签名 transition 与 STATE.md 投影随 PR 落仓，可由任意方复算验证",
+    "gate_version": "world-change-gate/2026-09-20",
+    "verdict": "VERIFIED_CHANGE",
+    "verified_by": "willlee"
+  }
+}
