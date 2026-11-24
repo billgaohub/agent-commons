@@ -26,6 +26,7 @@
 | `transitions/` | 已签名的状态变化（v0.1 envelope，见模板） | 走 PR + CI 验签 |
 | `evidence/` | 证据原文或链接，不贴大文件 | 走 PR |
 | `state/STATE.md` | 当前已验证的状态，由 `render_state.py` 从 `transitions/` 确定性投影生成，禁止手改 | 走 PR + 分支保护 |
+| `doc/POSITIONING.md` | 战略定位、五条硬边界与试点防膨胀红线 | 走 PR |
 | `doc/DECISION_LEDGER.md` | 决策账本，D-编号，Agent 用 blob URL 直读 | 走 PR |
 | `scripts/` | `canonical.py` / `sign.py` / `verify.py` / `render_state.py` / `ci_check.py` | 仅 owner 可改 |
 
