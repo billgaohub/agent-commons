@@ -1,0 +1,22 @@
+{
+  "commit": "74a11cb58662256a962dd430e9930790f2b630f2",
+  "observed_at": "2026-11-24T15:05:17+08:00",
+  "recompute_commands": [
+    "sha256sum scripts/*.py",
+    "python3 -m unittest discover -s tests -v",
+    "python3 scripts/render_state.py --check"
+  ],
+  "schema": "agent-commons/evidence-baseline/v1",
+  "script_sha256": {
+    "scripts/canonical.py": "efd74d686b65220d369a684ea518c76074b7f57ed3e7b630c3bea8709b1783d7",
+    "scripts/ci_check.py": "1d1baabf8590c40455c39792446223386e3c705690cefeccdccd1a9ef853455e",
+    "scripts/render_state.py": "3afa4c1d3ec6c51a99e2f157d7fcc539ca8221ce03d57e0f546dc103778f15ff",
+    "scripts/sign.py": "513f42435032c83523faf55933f6a247aa1bf40f7ef33529fbf8f750a6d57365",
+    "scripts/verify.py": "f50a738727263d182945ff9c1541cd18985203aa71090772037c36696c517ed6"
+  },
+  "test_summary": {
+    "command": "python3 -m unittest discover -s tests -v",
+    "exit_code": 0,
+    "tests_run": 18
+  }
+}
