@@ -337,6 +337,140 @@ class VerifyAndProjectionTests(unittest.TestCase):
         self.assertEqual(res_bad.returncode, 1)
         self.assertIn("GitHub blob URL", res_bad.stdout)
 
+    def test_github_blob_ref_binding_rules(self) -> None:
+        t_path = self.root / "transitions" / "t_blob_bind.json"
+        full_commit = "b" * 40
+        short_commit = "b" * 7
+        blob_sha = "a" * 40
+
+        def run_case(commit_val: str, locator_val: str) -> subprocess.CompletedProcess[str]:
+            env = _make_transition(
+                tid="t-blob-bind",
+                agent="m",
+                key_id="m-2026-01",
+                state_key="pilot/blob-bind",
+                state_value="ok",
+                version=1,
+            )
+            env["evidence"] = [
+                {
+                    "type": "github-blob",
+                    "commit": commit_val,
+                    "locator": locator_val,
+                    "sha256": blob_sha,
+                    "observed_at": "2026-11-24T12:00:00+08:00",
+                }
+            ]
+            env["receipt"]["evidence_refs"] = [locator_val]
+            t_path.write_text(json.dumps(env), encoding="utf-8")
+            self.assertEqual(_sign_file(self.m_priv, t_path).returncode, 0)
+            return _verify_cli(["--as-of", "2026-11-24", str(t_path)], self.root)
+
+        # 7-char short commit prefix matching 40-char locator ref passes
+        ok_short = run_case(short_commit, f"https://github.com/billgaohub/agent-commons/blob/{full_commit}/README.md")
+        self.assertEqual(ok_short.returncode, 0, ok_short.stdout)
+
+        # Mutable branch ref fails
+        bad_branch = run_case(full_commit, "https://github.com/billgaohub/agent-commons/blob/main/README.md")
+        self.assertEqual(bad_branch.returncode, 1)
+        self.assertIn("未绑定到 commit", bad_branch.stdout)
+
+        # Mismatched 40-char commit fails
+        bad_mismatch = run_case(full_commit, f"https://github.com/billgaohub/agent-commons/blob/{'c' * 40}/README.md")
+        self.assertEqual(bad_mismatch.returncode, 1)
+        self.assertIn("未绑定到 commit", bad_mismatch.stdout)
+
+    def test_github_blob_same_repo_git_object_and_shallow_fallback(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            origin_dir = Path(td) / "origin"
+            origin_dir.mkdir()
+            _git(origin_dir, ["init", "-b", "main"])
+            _git(origin_dir, ["config", "user.email", "test@example.com"])
+            _git(origin_dir, ["config", "user.name", "Test"])
+            (origin_dir / "transitions").mkdir()
+            (origin_dir / "state").mkdir()
+
+            sample = origin_dir / "sample.txt"
+            sample.write_text("v1 payload\n", encoding="utf-8")
+            _git(origin_dir, ["add", "."])
+            _git(origin_dir, ["commit", "-m", "c1"])
+            c1_sha = _git(origin_dir, ["rev-parse", "HEAD"]).strip()
+            c1_blob_sha = _git(origin_dir, ["rev-parse", f"{c1_sha}:sample.txt"]).strip()
+            c1_content_sha256 = hashlib.sha256(b"v1 payload\n").hexdigest()
+
+            (origin_dir / "extra.txt").write_text("v2\n", encoding="utf-8")
+            _git(origin_dir, ["add", "extra.txt"])
+            _git(origin_dir, ["commit", "-m", "c2"])
+
+            work_dir = Path(td) / "work"
+            _git(Path(td), ["clone", str(origin_dir), str(work_dir)])
+            _git(work_dir, ["remote", "set-url", "origin", "https://github.com/billgaohub/agent-commons.git"])
+            _write_registry(
+                work_dir / "agents.yaml",
+                [_make_agent_entry(agent_id="m", github_user="billgaohub", key_id="m-2026-01", pub_pem=self.m_pub)],
+            )
+
+            def run_in(repo: Path, locator: str, sha_val: str) -> subprocess.CompletedProcess[str]:
+                tp = repo / "transitions" / "t_git_blob.json"
+                tp.parent.mkdir(parents=True, exist_ok=True)
+                env = _make_transition(
+                    tid="t-git-blob",
+                    agent="m",
+                    key_id="m-2026-01",
+                    state_key="pilot/git-blob",
+                    state_value="ok",
+                    version=1,
+                )
+                env["evidence"] = [
+                    {
+                        "type": "github-blob",
+                        "commit": c1_sha,
+                        "locator": locator,
+                        "sha256": sha_val,
+                        "observed_at": "2026-11-24T12:00:00+08:00",
+                    }
+                ]
+                env["receipt"]["evidence_refs"] = [locator]
+                tp.write_text(json.dumps(env), encoding="utf-8")
+                self.assertEqual(_sign_file(self.m_priv, tp).returncode, 0)
+                return _verify_cli(["--as-of", "2026-11-24", str(tp)], repo)
+
+            locator_ok = f"https://github.com/billgaohub/agent-commons/blob/{c1_sha}/sample.txt"
+            self.assertEqual(run_in(work_dir, locator_ok, c1_blob_sha).returncode, 0)
+            self.assertEqual(run_in(work_dir, locator_ok, c1_content_sha256).returncode, 0)
+
+            res_bad_sha = run_in(work_dir, locator_ok, "f" * 40)
+            self.assertEqual(res_bad_sha.returncode, 1)
+            self.assertIn("blob SHA 不匹配", res_bad_sha.stdout)
+
+            res_missing = run_in(
+                work_dir,
+                f"https://github.com/billgaohub/agent-commons/blob/{c1_sha}/missing.txt",
+                c1_blob_sha,
+            )
+            self.assertEqual(res_missing.returncode, 1)
+            self.assertIn("本地 git 中不存在", res_missing.stdout)
+
+            # External repo URL stays purely syntactic offline
+            res_ext = run_in(
+                work_dir,
+                f"https://github.com/otherorg/otherrepo/blob/{c1_sha}/sample.txt",
+                "f" * 40,
+            )
+            self.assertEqual(res_ext.returncode, 0, res_ext.stdout)
+
+            # Shallow clone (--depth 1) gracefully skips local git check with a warning
+            shallow_dir = Path(td) / "shallow"
+            _git(Path(td), ["clone", "--depth", "1", f"file://{origin_dir}", str(shallow_dir)])
+            _git(shallow_dir, ["remote", "set-url", "origin", "https://github.com/billgaohub/agent-commons.git"])
+            _write_registry(
+                shallow_dir / "agents.yaml",
+                [_make_agent_entry(agent_id="m", github_user="billgaohub", key_id="m-2026-01", pub_pem=self.m_pub)],
+            )
+            res_shallow = run_in(shallow_dir, locator_ok, c1_blob_sha)
+            self.assertEqual(res_shallow.returncode, 0, res_shallow.stdout + res_shallow.stderr)
+            self.assertIn("shallow git repository", res_shallow.stderr)
+
     def test_historical_revoked_key_passes_all_when_not_new(self) -> None:
         t1_path, _t2 = self._create_signed_v1_v2()
         _write_registry(

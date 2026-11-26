@@ -31,6 +31,7 @@ import tempfile
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import unquote, urlsplit
 
 import yaml
 
@@ -45,6 +46,8 @@ ALLOWED_EVIDENCE_TYPES = frozenset({"file", "github-blob"})
 _HEX64_RE = re.compile(r"^[0-9a-fA-F]{64}$")
 _HEX40_OR_64_RE = re.compile(r"^[0-9a-fA-F]{40}$|^[0-9a-fA-F]{64}$")
 _COMMIT_RE = re.compile(r"^[0-9a-fA-F]{7,40}$")
+_GITHUB_BLOB_PATH_RE = re.compile(r"^/([^/]+)/([^/]+)/blob/([^/]+)/(.+)$")
+_GITHUB_REMOTE_RE = re.compile(r"^(?:https://github\.com/|git@github\.com:)([^/]+)/([^/]+?)(?:\.git)?$")
 
 
 class VerificationError(Exception):
@@ -202,6 +205,93 @@ def _validate_envelope_structure(envelope: dict[str, Any], label: str) -> tuple[
     return observed_dt, tid, version, prev_version, state_key
 
 
+def _detect_repo_github_slug(repo_root: Path) -> str | None:
+    """Return lowercase 'owner/repo' if repo_root is a git root with a GitHub origin."""
+    top_res = subprocess.run(
+        ["git", "-C", str(repo_root), "rev-parse", "--show-toplevel"],
+        capture_output=True,
+        text=True,
+    )
+    if top_res.returncode != 0 or Path(top_res.stdout.strip()).resolve() != repo_root.resolve():
+        return None
+    remote_res = subprocess.run(
+        ["git", "-C", str(repo_root), "remote", "get-url", "origin"],
+        capture_output=True,
+        text=True,
+    )
+    if remote_res.returncode != 0:
+        return None
+    match = _GITHUB_REMOTE_RE.match(remote_res.stdout.strip())
+    if not match:
+        return None
+    return f"{match.group(1)}/{match.group(2)}".lower()
+
+
+def _is_shallow_git_repo(repo_root: Path) -> bool:
+    """Return True if repo_root is a shallow git clone without full object history."""
+    res = subprocess.run(
+        ["git", "-C", str(repo_root), "rev-parse", "--is-shallow-repository"],
+        capture_output=True,
+        text=True,
+    )
+    return res.returncode == 0 and res.stdout.strip() == "true"
+
+
+def _verify_same_repo_github_blob(
+    repo_root: Path,
+    url_ref: str,
+    relpath: str,
+    declared_sha: str,
+    ctx: str,
+) -> None:
+    """Cross-check same-repo github-blob against local git object hash when full history is present."""
+    if _is_shallow_git_repo(repo_root):
+        print(
+            f"WARNING: shallow git repository detected; skipping local git blob verification for {url_ref}:{relpath}",
+            file=sys.stderr,
+        )
+        return
+
+    if relpath.startswith(("/", "\\")) or "\\" in relpath or ".." in Path(relpath).parts:
+        raise VerificationError(f"{ctx}：github-blob 路径非法：{relpath!r}")
+
+    rev_res = subprocess.run(
+        ["git", "-C", str(repo_root), "rev-parse", "--verify", f"{url_ref}:{relpath}"],
+        capture_output=True,
+        text=True,
+    )
+    if rev_res.returncode != 0:
+        raise VerificationError(f"{ctx}：同仓 github-blob 在本地 git 中不存在：{url_ref}:{relpath}")
+    blob_sha = rev_res.stdout.strip().lower()
+
+    type_res = subprocess.run(
+        ["git", "-C", str(repo_root), "cat-file", "-t", blob_sha],
+        capture_output=True,
+        text=True,
+    )
+    if type_res.returncode != 0 or type_res.stdout.strip() != "blob":
+        raise VerificationError(f"{ctx}：同仓 github-blob 指向的不是 blob 对象：{url_ref}:{relpath}")
+
+    declared_lower = declared_sha.lower()
+    if len(declared_lower) == 40:
+        if blob_sha != declared_lower:
+            raise VerificationError(
+                f"{ctx}：同仓 github-blob git blob SHA 不匹配（声明={declared_lower}，实际={blob_sha}）"
+            )
+    else:
+        raw_res = subprocess.run(
+            ["git", "-C", str(repo_root), "cat-file", "blob", blob_sha],
+            capture_output=True,
+        )
+        if raw_res.returncode != 0:
+            raise VerificationError(f"{ctx}：无法读取本地 git blob 内容：{blob_sha}")
+        actual_sha256 = hashlib.sha256(raw_res.stdout).hexdigest()
+        if actual_sha256 != declared_lower:
+            raise VerificationError(
+                f"{ctx}：同仓 github-blob 内容 sha256 不匹配（声明={declared_lower}，实际={actual_sha256}）"
+            )
+
+
 def _validate_evidence(envelope: dict[str, Any], repo_root: Path, label: str) -> None:
     evidence = envelope.get("evidence")
     if not isinstance(evidence, list) or not evidence:
@@ -209,6 +299,7 @@ def _validate_evidence(envelope: dict[str, Any], repo_root: Path, label: str) ->
 
     ref_pool: set[str] = set()
     repo_root_resolved = repo_root.resolve()
+    repo_github_slug = _detect_repo_github_slug(repo_root_resolved)
 
     for idx, item in enumerate(evidence):
         ctx = f"{label}.evidence[{idx}]"
@@ -242,10 +333,31 @@ def _validate_evidence(envelope: dict[str, Any], repo_root: Path, label: str) ->
             commit = require_nonempty_str(item, "commit", ctx)
             if not _COMMIT_RE.match(commit):
                 raise VerificationError(f"{ctx}：github-blob commit 格式非法：{commit!r}")
-            if not locator.startswith("https://github.com/") or "/blob/" not in locator:
+            parsed = urlsplit(locator)
+            blob_match = (
+                _GITHUB_BLOB_PATH_RE.match(parsed.path)
+                if parsed.scheme == "https" and parsed.netloc == "github.com" and not parsed.query
+                else None
+            )
+            if blob_match is None:
                 raise VerificationError(f"{ctx}：github-blob locator 必须是 GitHub blob URL（{locator!r}）")
+            url_owner, url_repo, url_ref, raw_relpath = blob_match.groups()
+            commit_lower = commit.lower()
+            ref_lower = url_ref.lower()
+            if not _COMMIT_RE.match(url_ref) or (ref_lower != commit_lower and not ref_lower.startswith(commit_lower)):
+                raise VerificationError(
+                    f"{ctx}：github-blob locator 的路径 ref {url_ref!r} 未绑定到 commit {commit!r}"
+                )
             if not _HEX40_OR_64_RE.match(sha):
                 raise VerificationError(f"{ctx}：github-blob sha256/blob-sha 格式非法（{sha!r}）")
+            if repo_github_slug is not None and f"{url_owner}/{url_repo}".lower() == repo_github_slug:
+                _verify_same_repo_github_blob(
+                    repo_root_resolved,
+                    url_ref,
+                    unquote(raw_relpath),
+                    sha,
+                    ctx,
+                )
 
         ref_pool.add(locator)
         ref_pool.add(sha)
