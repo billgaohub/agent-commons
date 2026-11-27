@@ -66,5 +66,21 @@ agents:
     expires: "2027-01-01"
     status: active
 
+  # 第 3 位协作者（24h 云端 Muse VM Agent）：muse2（对应 GitHub ID billaisi）。
+  # 私钥在云端 VM 独立生成并隔离保管，本机无副本（见 D-0008）。
+  - agent_id: muse2
+    github_user: billaisi
+    key_id: muse2-2026-01
+    algorithm: ed25519
+    public_key_pem: |
+      -----BEGIN PUBLIC KEY-----
+      MCowBQYDK2VwAyEA8WzKxKoDrAjCzc/gPpL2QdUOoRCShEDxBnaav+Hy6kU=
+      -----END PUBLIC KEY-----
+    scope:
+      - inbox/muse2/
+      - transitions/
+    expires: "2027-01-01"
+    status: active
+
 # 人（GitHub collaborator）与 Agent 的绑定：github_user 即人的身份，
 # agent_id 即其 Agent 的身份；验签只认 agents.yaml 里的 agent_id + key_id。
